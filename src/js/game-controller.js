@@ -1,9 +1,10 @@
 // In-Game Controller: HUD, User Interaction, Turn Engine, Undo, Pause & Result
-// Strictly adheres to MASTER_SPEC.md sections 5.1, 5.2, 7.3
+// Integrates with Web Worker AI Service and Hint highlights
 
-import { buildBoardGraph, createGameState, getLegalMoves, applyMove, undoMove, checkStatus } from './engine.js';
+import { buildBoardGraph, createGameState, getLegalMoves, applyMove, undoMove } from './engine.js';
 import { renderBoardSVG, attachBoardInteraction } from './board-view.js';
-import { showScreen, showModal, hideModal } from './main.js';
+import { showScreen } from './main.js';
+import { requestAIMove, requestHint } from './ai-service.js';
 
 export class GameController {
   constructor(appState) {
@@ -16,6 +17,7 @@ export class GameController {
     this.detachInteraction = null;
     this.hintActive = false;
     this.hintNodes = [];
+    this.isAiThinking = false;
   }
 
   startNewGame() {
@@ -44,6 +46,7 @@ export class GameController {
     this.legalDestinations = [];
     this.hintActive = false;
     this.hintNodes = [];
+    this.isAiThinking = false;
 
     // Title in top bar
     const modeTitle = document.getElementById('game-mode-title');
@@ -55,8 +58,7 @@ export class GameController {
     this.initInteraction();
     this.updateUI();
 
-    // Check if initial turn belongs to AI (handled in Step 9)
-    if (this.onTurnStart) this.onTurnStart();
+    this.triggerTurn();
   }
 
   initInteraction() {
@@ -73,15 +75,13 @@ export class GameController {
   }
 
   handlePointTap(nodeId) {
-    if (this.state.winner) return;
+    if (this.state.winner || this.isAiThinking) return;
 
-    // In AI mode, ignore taps during AI turn
     if (this.appState.opponent.type === 'ai' && this.isComputerTurn()) {
       return;
     }
 
     const { pieces, turn, phase } = this.state;
-    const isMini = this.appState.selectedMode === 'mini';
 
     // 1. PLACING or SETUP PHASE
     if (phase === 'setup' || phase === 'placing') {
@@ -95,7 +95,6 @@ export class GameController {
 
     // 2. MOVING PHASE
     if (phase === 'moving') {
-      // If a destination point is tapped while a piece is selected
       if (this.selectedNode && this.legalDestinations.includes(nodeId)) {
         const legalMoves = getLegalMoves(this.state, this.graph, this.selectedNode);
         const move = legalMoves.find(m => m.to === nodeId);
@@ -107,10 +106,8 @@ export class GameController {
         }
       }
 
-      // If own piece is tapped, select it or switch selection
       if (pieces[nodeId] === turn) {
         if (this.selectedNode === nodeId) {
-          // Deselect
           this.selectedNode = null;
           this.legalDestinations = [];
         } else {
@@ -122,7 +119,6 @@ export class GameController {
         return;
       }
 
-      // Tapping elsewhere clears selection
       if (this.selectedNode) {
         this.selectedNode = null;
         this.legalDestinations = [];
@@ -144,8 +140,24 @@ export class GameController {
       return;
     }
 
-    if (this.onTurnStart) {
-      this.onTurnStart();
+    this.triggerTurn();
+  }
+
+  triggerTurn() {
+    if (this.state.winner) return;
+
+    if (this.appState.opponent.type === 'ai' && this.isComputerTurn()) {
+      this.isAiThinking = true;
+      this.updateUI();
+
+      requestAIMove(this.state, this.graph, this.appState.opponent.difficulty, 400).then(move => {
+        this.isAiThinking = false;
+        if (move && !this.state.winner) {
+          this.executeMove(move);
+        } else {
+          this.updateUI();
+        }
+      });
     }
   }
 
@@ -157,20 +169,46 @@ export class GameController {
   }
 
   handleUndo() {
-    if (!this.state || this.state.history.length === 0) return;
+    if (this.isAiThinking || !this.state || this.state.history.length === 0) return;
 
     if (this.appState.opponent.type === 'ai') {
-      // Undo both computer's reply and human's move together
-      undoMove(this.state); // undo AI
-      undoMove(this.state); // undo human
+      const humanSide = this.appState.opponent.resolvedHumanSide || this.appState.opponent.humanSide;
+      // Need at least one move made by human to undo
+      const hasHumanMove = this.state.history.some(h => {
+        const move = h.move;
+        return move.piece === humanSide;
+      });
+      if (!hasHumanMove) return;
+
+      // Undo computer reply and human move
+      if (this.state.turn === humanSide) {
+        undoMove(this.state); // undo computer
+        undoMove(this.state); // undo human
+      } else {
+        undoMove(this.state); // undo human
+      }
     } else {
-      // Two players: undo 1 move
       undoMove(this.state);
     }
 
     this.selectedNode = null;
     this.legalDestinations = [];
     this.updateUI();
+  }
+
+  handleHint() {
+    if (this.isAiThinking || this.state.winner || this.isComputerTurn()) return;
+
+    requestHint(this.state, this.graph).then(move => {
+      if (!move) return;
+      this.hintNodes = [move.from, move.to].filter(Boolean);
+      this.updateUI();
+
+      setTimeout(() => {
+        this.hintNodes = [];
+        this.updateUI();
+      }, 2000);
+    });
   }
 
   updateUI() {
@@ -184,7 +222,7 @@ export class GameController {
       hudPhase.textContent = state.phase.charAt(0).toUpperCase() + state.phase.slice(1);
     }
 
-    // HUD: Unplaced goats/lambs
+    // HUD: Unplaced
     const hudUnplaced = document.getElementById('hud-unplaced');
     const hudUnplacedLabel = document.getElementById('hud-unplaced-label');
     if (hudUnplaced) {
@@ -218,7 +256,6 @@ export class GameController {
           turnTextEl.textContent = state.turn === 'T' ? 'Your turn: move a tiger' : (isMini ? 'Your turn: move a lamb' : 'Your turn: move a goat');
         }
       } else {
-        // Two players
         if (state.phase === 'setup') {
           turnTextEl.textContent = 'Tigers: place a tiger';
         } else if (state.phase === 'placing') {
@@ -229,7 +266,7 @@ export class GameController {
       }
     }
 
-    // Note/Toast under board
+    // Note/Toast
     const noteEl = document.getElementById('game-toast-note');
     if (noteEl) {
       if (this.selectedNode) {
@@ -241,15 +278,17 @@ export class GameController {
       }
     }
 
-    // Board SVG rendering
+    // Board SVG
     const container = document.getElementById('game-board-container');
     if (container) {
       let legalSpots = [];
-      if (state.phase === 'placing' || state.phase === 'setup') {
-        const moves = getLegalMoves(state, this.graph);
-        legalSpots = moves.map(m => m.to);
-      } else if (this.selectedNode) {
-        legalSpots = this.legalDestinations;
+      if (!this.isComputerTurn()) {
+        if (state.phase === 'placing' || state.phase === 'setup') {
+          const moves = getLegalMoves(state, this.graph);
+          legalSpots = moves.map(m => m.to);
+        } else if (this.selectedNode) {
+          legalSpots = this.legalDestinations;
+        }
       }
 
       container.innerHTML = renderBoardSVG(board, {
@@ -261,10 +300,14 @@ export class GameController {
       });
     }
 
-    // Undo button state
+    // Undo & Hint buttons
     const undoBtn = document.getElementById('btn-game-undo');
     if (undoBtn) {
-      undoBtn.disabled = state.history.length === 0;
+      undoBtn.disabled = this.isAiThinking || state.history.length === 0;
+    }
+    const hintBtn = document.getElementById('btn-game-hint');
+    if (hintBtn) {
+      hintBtn.disabled = this.isAiThinking || this.isComputerTurn() || !!state.winner;
     }
   }
 

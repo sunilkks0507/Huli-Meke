@@ -169,6 +169,10 @@ export async function initApp() {
     gameController.handleUndo();
   });
 
+  document.getElementById('btn-game-hint')?.addEventListener('click', () => {
+    gameController.handleHint();
+  });
+
   document.getElementById('btn-game-pause')?.addEventListener('click', () => {
     showModal('modal-pause');
   });
