@@ -4,6 +4,7 @@
   "description": "Karnataka tiger and goat game (PWA)",
   "type": "module",
   "scripts": {
+    "start": "node server.js",
     "test": "node --test"
   },
   "keywords": [
