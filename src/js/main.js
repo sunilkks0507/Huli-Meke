@@ -2,6 +2,7 @@
 
 import { renderBoardSVG } from './board-view.js';
 import { initSetupScreens, onModeChanged, renderBoardPicker, updateCustomUI } from './setup-screens.js';
+import { GameController } from './game-controller.js';
 
 export const appState = {
   currentScreen: 'screen-home',
@@ -17,9 +18,12 @@ export const appState = {
   opponent: {
     type: 'ai', // 'ai' or 'human'
     humanSide: 'T', // 'T', 'G', or 'random'
+    resolvedHumanSide: 'T',
     difficulty: 'medium' // 'easy', 'medium', 'hard'
   }
 };
+
+export let gameController = null;
 
 export function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -47,6 +51,30 @@ export function hideModal(modalId) {
   if (modal) modal.classList.remove('active');
 }
 
+export function showConfirmDialog({ title, message, actionLabel, onConfirm }) {
+  const modal = document.getElementById('modal-confirm');
+  const titleEl = document.getElementById('confirm-title');
+  const msgEl = document.getElementById('confirm-message');
+  const actionBtn = document.getElementById('btn-confirm-action');
+  const cancelBtn = document.getElementById('btn-confirm-cancel');
+
+  if (titleEl) titleEl.textContent = title;
+  if (msgEl) msgEl.textContent = message;
+  if (actionBtn) {
+    actionBtn.textContent = actionLabel;
+    actionBtn.onclick = () => {
+      hideModal('modal-confirm');
+      if (onConfirm) onConfirm();
+    };
+  }
+  if (cancelBtn) {
+    cancelBtn.onclick = () => {
+      hideModal('modal-confirm');
+    };
+  }
+  showModal('modal-confirm');
+}
+
 export async function initApp() {
   // 1. Fetch Board definitions
   try {
@@ -56,6 +84,8 @@ export async function initApp() {
     console.error('Failed to load board data:', err);
     return;
   }
+
+  gameController = new GameController(appState);
 
   // 2. Render Home Classic Board Preview
   const classic = appState.boards.find(b => b.id === 'classic');
@@ -89,7 +119,7 @@ export async function initApp() {
     showScreen('screen-settings');
   });
 
-  // Step 7 Continuations
+  // Setup navigation
   document.getElementById('btn-mode-continue')?.addEventListener('click', () => {
     showScreen('screen-board');
   });
@@ -123,6 +153,61 @@ export async function initApp() {
 
   // Opponent Screen Wiring
   initOpponentScreen();
+
+  // In-Game Buttons
+  document.getElementById('btn-opponent-start')?.addEventListener('click', () => {
+    // Resolve Random side
+    if (appState.opponent.humanSide === 'random') {
+      appState.opponent.resolvedHumanSide = Math.random() < 0.5 ? 'T' : 'G';
+    } else {
+      appState.opponent.resolvedHumanSide = appState.opponent.humanSide;
+    }
+    gameController.startNewGame();
+  });
+
+  document.getElementById('btn-game-undo')?.addEventListener('click', () => {
+    gameController.handleUndo();
+  });
+
+  document.getElementById('btn-game-pause')?.addEventListener('click', () => {
+    showModal('modal-pause');
+  });
+
+  document.getElementById('btn-pause-resume')?.addEventListener('click', () => {
+    hideModal('modal-pause');
+  });
+
+  document.getElementById('btn-pause-restart')?.addEventListener('click', () => {
+    showConfirmDialog({
+      title: 'Restart game?',
+      message: 'Current game progress will be lost.',
+      actionLabel: 'Restart',
+      onConfirm: () => {
+        hideModal('modal-pause');
+        gameController.startNewGame();
+      }
+    });
+  });
+
+  document.getElementById('btn-pause-quit')?.addEventListener('click', () => {
+    showConfirmDialog({
+      title: 'Quit to Home?',
+      message: 'Leave this game? Progress will be lost.',
+      actionLabel: 'Quit',
+      onConfirm: () => {
+        hideModal('modal-pause');
+        showScreen('screen-home');
+      }
+    });
+  });
+
+  document.getElementById('btn-result-again')?.addEventListener('click', () => {
+    gameController.startNewGame();
+  });
+
+  document.getElementById('btn-result-home')?.addEventListener('click', () => {
+    showScreen('screen-home');
+  });
 }
 
 function initOpponentScreen() {
