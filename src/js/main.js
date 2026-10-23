@@ -236,20 +236,50 @@ function initInstallPrompt() {
   const installBtn = document.getElementById('btn-home-install');
   if (!installBtn) return;
 
+  const isIos = typeof navigator !== 'undefined' && /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+  const isStandalone = typeof window !== 'undefined' && (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+  );
+
+  if (isStandalone) {
+    installBtn.style.display = 'none';
+    return;
+  }
+
+  installBtn.style.display = 'block';
+
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    installBtn.style.display = 'block';
   });
 
   installBtn.addEventListener('click', async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    const { outcome } = await deferredInstallPrompt.userChoice;
-    if (outcome === 'accepted') {
-      installBtn.style.display = 'none';
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        installBtn.style.display = 'none';
+      }
+      deferredInstallPrompt = null;
+      return;
     }
-    deferredInstallPrompt = null;
+
+    if (isIos) {
+      showConfirmDialog({
+        title: 'Install on iPhone / iPad',
+        message: 'Tap the Share icon at the bottom of Safari (the square with an arrow pointing up), then select "Add to Home Screen".',
+        actionLabel: 'Got it',
+        onConfirm: () => {}
+      });
+    } else {
+      showConfirmDialog({
+        title: 'Install App',
+        message: 'To install on Android, tap your browser menu (⋮ at the top right) and select "Install app" or "Add to Home screen".',
+        actionLabel: 'Got it',
+        onConfirm: () => {}
+      });
+    }
   });
 
   window.addEventListener('appinstalled', () => {
