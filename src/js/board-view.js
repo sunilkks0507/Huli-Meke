@@ -70,7 +70,11 @@ export function renderBoardSVG(board, options = {}) {
     const stroke = isSelected ? '#16A34A' : '#5A4630';
     const strokeWidth = isSelected ? 5 : 2.5;
 
-    svg += `<g class="board-node" data-node-id="${id}" style="cursor: pointer;">`;
+    const pieceLabel = piece === 'T' ? 'Tiger' : (piece === 'G' ? 'Goat' : 'empty');
+    const statusLabel = isSelected ? ', selected' : (isLegal ? ', legal target' : '');
+    const nodeAria = `Point ${id}, ${pieceLabel}${statusLabel}`;
+
+    svg += `<g class="board-node" data-node-id="${id}" tabindex="0" role="button" aria-label="${nodeAria}" style="cursor: pointer;">`;
 
     // Large invisible hit area (radius 22) for effortless touch/click registration
     svg += `<circle cx="${x}" cy="${y}" r="22" fill="transparent" stroke="none" style="pointer-events:all;"/>`;
@@ -113,7 +117,7 @@ export function attachBoardInteraction(container, board, onPointSelected) {
       }
     }
 
-    // 2. Proportional bounding-rect hit (100% reliable across all zoom / DPI settings)
+    // 2. Proportional bounding-rect hit
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
     const rect = svgEl.getBoundingClientRect();
@@ -148,11 +152,61 @@ export function attachBoardInteraction(container, board, onPointSelected) {
     }
   };
 
+  const onKeyDown = (e) => {
+    const activeEl = document.activeElement;
+    const nodeEl = activeEl && activeEl.closest ? activeEl.closest('[data-node-id]') : null;
+    if (!nodeEl || !nodeEl.dataset.nodeId) return;
+
+    const currentId = nodeEl.dataset.nodeId;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onPointSelected(currentId);
+      return;
+    }
+
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+      e.preventDefault();
+      const currentPos = board.nodes[currentId];
+      if (!currentPos) return;
+      const [cx, cy] = currentPos;
+
+      let bestNeighbour = null;
+      let minDistance = Infinity;
+
+      for (const [nid, [nx, ny]] of Object.entries(board.nodes)) {
+        if (nid === currentId) continue;
+        const dx = nx - cx;
+        const dy = ny - cy;
+
+        let inDirection = false;
+        if (e.key === 'ArrowRight' && dx > 8 && Math.abs(dx) >= Math.abs(dy) * 0.4) inDirection = true;
+        if (e.key === 'ArrowLeft' && dx < -8 && Math.abs(dx) >= Math.abs(dy) * 0.4) inDirection = true;
+        if (e.key === 'ArrowDown' && dy > 8 && Math.abs(dy) >= Math.abs(dx) * 0.4) inDirection = true;
+        if (e.key === 'ArrowUp' && dy < -8 && Math.abs(dy) >= Math.abs(dx) * 0.4) inDirection = true;
+
+        if (inDirection) {
+          const dist = dx * dx + dy * dy;
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestNeighbour = nid;
+          }
+        }
+      }
+
+      if (bestNeighbour) {
+        const nextEl = container.querySelector(`[data-node-id="${bestNeighbour}"]`);
+        if (nextEl) nextEl.focus();
+      }
+    }
+  };
+
   container.addEventListener('click', onClick);
   container.addEventListener('touchend', onTouchEnd, { passive: false });
+  container.addEventListener('keydown', onKeyDown);
 
   return () => {
     container.removeEventListener('click', onClick);
     container.removeEventListener('touchend', onTouchEnd);
+    container.removeEventListener('keydown', onKeyDown);
   };
 }
