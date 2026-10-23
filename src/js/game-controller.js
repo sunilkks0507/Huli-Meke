@@ -5,6 +5,8 @@ import { buildBoardGraph, createGameState, getLegalMoves, applyMove, undoMove } 
 import { renderBoardSVG, attachBoardInteraction } from './board-view.js';
 import { showScreen } from './main.js';
 import { requestAIMove, requestHint } from './ai-service.js';
+import { playSound } from './sound.js';
+import { loadSettings, recordGameResult } from './storage.js';
 
 export class GameController {
   constructor(appState) {
@@ -128,6 +130,15 @@ export class GameController {
   }
 
   executeMove(move) {
+    const settings = loadSettings();
+    if (move.type === 'jump') {
+      playSound('capture', settings.sound);
+    } else if (move.type === 'place') {
+      playSound('place', settings.sound);
+    } else if (move.type === 'step') {
+      playSound('move', settings.sound);
+    }
+
     applyMove(this.state, move, this.graph);
     this.selectedNode = null;
     this.legalDestinations = [];
@@ -136,6 +147,17 @@ export class GameController {
     this.updateUI();
 
     if (this.state.winner) {
+      if (this.appState.opponent.type === 'ai') {
+        const humanSide = this.appState.opponent.resolvedHumanSide || this.appState.opponent.humanSide;
+        recordGameResult(this.appState.selectedMode, humanSide, this.state.winner);
+        if (this.state.winner === humanSide) {
+          playSound('win', settings.sound);
+        } else if (this.state.winner !== 'draw') {
+          playSound('lose', settings.sound);
+        }
+      } else {
+        playSound('win', settings.sound);
+      }
       setTimeout(() => this.showResultScreen(), 400);
       return;
     }
@@ -307,7 +329,8 @@ export class GameController {
     }
     const hintBtn = document.getElementById('btn-game-hint');
     if (hintBtn) {
-      hintBtn.disabled = this.isAiThinking || this.isComputerTurn() || !!state.winner;
+      const settings = loadSettings();
+      hintBtn.disabled = !settings.hints || this.isAiThinking || this.isComputerTurn() || !!state.winner;
     }
   }
 

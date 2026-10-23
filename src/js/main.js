@@ -3,6 +3,8 @@
 import { renderBoardSVG } from './board-view.js';
 import { initSetupScreens, onModeChanged, renderBoardPicker, updateCustomUI } from './setup-screens.js';
 import { GameController } from './game-controller.js';
+import { TutorialController } from './tutorial.js';
+import { loadSettings, saveSettings, loadStats, resetAllStats } from './storage.js';
 
 export const appState = {
   currentScreen: 'screen-home',
@@ -24,6 +26,7 @@ export const appState = {
 };
 
 export let gameController = null;
+export let tutorialController = null;
 
 export function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -37,6 +40,10 @@ export function showScreen(screenId) {
       renderBoardPicker(appState);
     } else if (screenId === 'screen-custom') {
       updateCustomUI(appState);
+    } else if (screenId === 'screen-stats') {
+      renderStats();
+    } else if (screenId === 'screen-settings') {
+      updateSettingsUI();
     }
   }
 }
@@ -52,7 +59,6 @@ export function hideModal(modalId) {
 }
 
 export function showConfirmDialog({ title, message, actionLabel, onConfirm }) {
-  const modal = document.getElementById('modal-confirm');
   const titleEl = document.getElementById('confirm-title');
   const msgEl = document.getElementById('confirm-message');
   const actionBtn = document.getElementById('btn-confirm-action');
@@ -75,8 +81,57 @@ export function showConfirmDialog({ title, message, actionLabel, onConfirm }) {
   showModal('modal-confirm');
 }
 
+export function renderStats() {
+  const stats = loadStats();
+  const tbody = document.getElementById('stats-table-body');
+  const tableCard = document.getElementById('stats-table-card');
+  const emptyCard = document.getElementById('stats-empty-state');
+  if (!tbody) return;
+
+  const rows = [
+    { label: 'Standard, Tiger', data: stats['standard-tiger'] },
+    { label: 'Standard, Goat', data: stats['standard-goat'] },
+    { label: 'Mini, Tiger', data: stats['mini-tiger'] },
+    { label: 'Mini, Lamb', data: stats['mini-goat'] },
+    { label: 'Custom, Tiger', data: stats['custom-tiger'] },
+    { label: 'Custom, Goat', data: stats['custom-goat'] }
+  ];
+
+  const totalPlayed = rows.reduce((sum, r) => sum + (r.data?.played || 0), 0);
+
+  if (totalPlayed === 0) {
+    if (tableCard) tableCard.style.display = 'none';
+    if (emptyCard) emptyCard.style.display = 'block';
+  } else {
+    if (tableCard) tableCard.style.display = 'block';
+    if (emptyCard) emptyCard.style.display = 'none';
+
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${r.label}</td>
+        <td>${r.data ? r.data.played : 0}</td>
+        <td>${r.data ? r.data.won : 0}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+export function updateSettingsUI() {
+  const settings = loadSettings();
+  const toggleSound = document.getElementById('toggle-sound');
+  const toggleHints = document.getElementById('toggle-hints');
+
+  if (toggleSound) {
+    toggleSound.classList.toggle('on', !!settings.sound);
+    toggleSound.setAttribute('aria-checked', String(!!settings.sound));
+  }
+  if (toggleHints) {
+    toggleHints.classList.toggle('on', !!settings.hints);
+    toggleHints.setAttribute('aria-checked', String(!!settings.hints));
+  }
+}
+
 export async function initApp() {
-  // 1. Fetch Board definitions
   try {
     const res = await fetch('data/boards.json');
     appState.boards = await res.json();
@@ -86,8 +141,9 @@ export async function initApp() {
   }
 
   gameController = new GameController(appState);
+  tutorialController = new TutorialController(appState);
 
-  // 2. Render Home Classic Board Preview
+  // Home preview
   const classic = appState.boards.find(b => b.id === 'classic');
   const homeBox = document.getElementById('home-preview-box');
   if (classic && homeBox) {
@@ -96,7 +152,7 @@ export async function initApp() {
     homeBox.innerHTML = renderBoardSVG(classic, { pieces, size: 200 });
   }
 
-  // 3. Navigation wiring
+  // Navigation
   document.querySelectorAll('[data-back]').forEach(btn => {
     btn.addEventListener('click', () => {
       showScreen(btn.dataset.back);
@@ -108,18 +164,29 @@ export async function initApp() {
   });
 
   document.getElementById('btn-home-tutorial')?.addEventListener('click', () => {
-    showScreen('screen-tutorial');
+    tutorialController.start();
+  });
+
+  document.getElementById('btn-tutorial-back')?.addEventListener('click', () => {
+    tutorialController.back();
+  });
+
+  document.getElementById('btn-tutorial-next')?.addEventListener('click', () => {
+    tutorialController.next();
   });
 
   document.getElementById('btn-home-stats')?.addEventListener('click', () => {
     showScreen('screen-stats');
   });
 
+  document.getElementById('btn-stats-play')?.addEventListener('click', () => {
+    showScreen('screen-mode');
+  });
+
   document.getElementById('btn-home-settings')?.addEventListener('click', () => {
     showScreen('screen-settings');
   });
 
-  // Setup navigation
   document.getElementById('btn-mode-continue')?.addEventListener('click', () => {
     showScreen('screen-board');
   });
@@ -144,19 +211,16 @@ export async function initApp() {
     }
   });
 
-  // Setup Screen Components
   initSetupScreens(appState, (board) => {
     if (appState.selectedMode === 'custom') {
       updateCustomUI(appState);
     }
   });
 
-  // Opponent Screen Wiring
   initOpponentScreen();
 
   // In-Game Buttons
   document.getElementById('btn-opponent-start')?.addEventListener('click', () => {
-    // Resolve Random side
     if (appState.opponent.humanSide === 'random') {
       appState.opponent.resolvedHumanSide = Math.random() < 0.5 ? 'T' : 'G';
     } else {
@@ -212,6 +276,32 @@ export async function initApp() {
   document.getElementById('btn-result-home')?.addEventListener('click', () => {
     showScreen('screen-home');
   });
+
+  // Settings Toggles & Reset
+  document.getElementById('toggle-sound')?.addEventListener('click', () => {
+    const s = loadSettings();
+    s.sound = !s.sound;
+    saveSettings(s);
+    updateSettingsUI();
+  });
+
+  document.getElementById('toggle-hints')?.addEventListener('click', () => {
+    const s = loadSettings();
+    s.hints = !s.hints;
+    saveSettings(s);
+    updateSettingsUI();
+  });
+
+  document.getElementById('btn-settings-reset')?.addEventListener('click', () => {
+    showConfirmDialog({
+      title: 'Reset all stats?',
+      message: 'This cannot be undone.',
+      actionLabel: 'Reset',
+      onConfirm: () => {
+        resetAllStats();
+      }
+    });
+  });
 }
 
 function initOpponentScreen() {
@@ -236,7 +326,6 @@ function initOpponentScreen() {
     appState.opponent.type = 'human';
   });
 
-  // Side choice pills
   document.querySelectorAll('.side-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       document.querySelectorAll('.side-pill').forEach(p => p.classList.remove('on'));
@@ -245,7 +334,6 @@ function initOpponentScreen() {
     });
   });
 
-  // Difficulty pills
   document.querySelectorAll('.diff-pill').forEach(pill => {
     pill.addEventListener('click', () => {
       document.querySelectorAll('.diff-pill').forEach(p => p.classList.remove('on'));
@@ -255,7 +343,6 @@ function initOpponentScreen() {
   });
 }
 
-// Auto-run when DOM is ready
 if (typeof window !== 'undefined') {
   window.addEventListener('DOMContentLoaded', () => {
     initApp();
