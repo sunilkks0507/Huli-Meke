@@ -98,8 +98,8 @@ export class GameController {
 
     const { pieces, turn, phase } = this.state;
 
-    // 1. PLACING or SETUP PHASE
-    if (phase === 'setup' || phase === 'placing') {
+    // 1. EXTRA TIGER SETUP PHASE
+    if (phase === 'setup' && turn === 'T') {
       const legalMoves = getLegalMoves(this.state, this.graph);
       const move = legalMoves.find(m => m.type === 'place' && m.to === nodeId);
       if (move) {
@@ -108,37 +108,55 @@ export class GameController {
       }
     }
 
-    // 2. MOVING PHASE
-    if (phase === 'moving') {
-      if (this.selectedNode && this.legalDestinations.includes(nodeId)) {
-        const legalMoves = getLegalMoves(this.state, this.graph, this.selectedNode);
-        const move = legalMoves.find(m => m.to === nodeId);
-        if (move) {
-          this.executeMove(move);
-          this.selectedNode = null;
-          this.legalDestinations = [];
-          return;
-        }
-      }
-
-      if (pieces[nodeId] === turn) {
-        if (this.selectedNode === nodeId) {
-          this.selectedNode = null;
-          this.legalDestinations = [];
-        } else {
-          this.selectedNode = nodeId;
-          const moves = getLegalMoves(this.state, this.graph, nodeId);
-          this.legalDestinations = moves.map(m => m.to);
-        }
-        this.updateUI();
+    // 2. GOAT PLACING PHASE
+    if (phase === 'placing' && turn === 'G') {
+      const legalMoves = getLegalMoves(this.state, this.graph);
+      const move = legalMoves.find(m => m.type === 'place' && m.to === nodeId);
+      if (move) {
+        this.executeMove(move);
         return;
       }
+    }
 
-      if (this.selectedNode) {
+    // 3. MOVING TURN (Either Tiger in placing/moving, or Goat in moving)
+    // Tapping own piece -> select / change selection
+    if (pieces[nodeId] === turn) {
+      if (this.selectedNode === nodeId) {
         this.selectedNode = null;
         this.legalDestinations = [];
-        this.updateUI();
+      } else {
+        this.selectedNode = nodeId;
+        const moves = getLegalMoves(this.state, this.graph, nodeId);
+        this.legalDestinations = moves.map(m => m.to);
       }
+      this.updateUI();
+      return;
+    }
+
+    // Tapping a destination spot
+    const legalMoves = getLegalMoves(this.state, this.graph);
+
+    // Case A: A piece is already selected
+    if (this.selectedNode && this.legalDestinations.includes(nodeId)) {
+      const move = legalMoves.find(m => m.from === this.selectedNode && m.to === nodeId);
+      if (move) {
+        this.executeMove(move);
+        return;
+      }
+    }
+
+    // Case B: Direct tap on a green destination spot when only one piece can reach it
+    const matchingMoves = legalMoves.filter(m => m.to === nodeId);
+    if (matchingMoves.length === 1) {
+      this.executeMove(matchingMoves[0]);
+      return;
+    }
+
+    // Tapping elsewhere clears selection
+    if (this.selectedNode) {
+      this.selectedNode = null;
+      this.legalDestinations = [];
+      this.updateUI();
     }
   }
 
@@ -280,18 +298,22 @@ export class GameController {
       } else if (isVsComputer) {
         if (state.phase === 'setup') {
           turnTextEl.textContent = 'Your turn: place a tiger';
-        } else if (state.phase === 'placing') {
-          turnTextEl.textContent = isMini ? 'Your turn: place a lamb' : 'Your turn: place a goat';
+        } else if (state.turn === 'G') {
+          turnTextEl.textContent = state.phase === 'placing'
+            ? (isMini ? 'Your turn: place a lamb' : 'Your turn: place a goat')
+            : (isMini ? 'Your turn: move a lamb' : 'Your turn: move a goat');
         } else {
-          turnTextEl.textContent = state.turn === 'T' ? 'Your turn: move a tiger' : (isMini ? 'Your turn: move a lamb' : 'Your turn: move a goat');
+          turnTextEl.textContent = 'Your turn: move a tiger';
         }
       } else {
         if (state.phase === 'setup') {
           turnTextEl.textContent = 'Tigers: place a tiger';
-        } else if (state.phase === 'placing') {
-          turnTextEl.textContent = isMini ? 'Lambs: place a lamb' : 'Goats: place a goat';
+        } else if (state.turn === 'G') {
+          turnTextEl.textContent = state.phase === 'placing'
+            ? (isMini ? 'Lambs: place a lamb' : 'Goats: place a goat')
+            : (isMini ? 'Lambs: move a lamb' : 'Goats: move a goat');
         } else {
-          turnTextEl.textContent = state.turn === 'T' ? 'Tigers: move a tiger' : (isMini ? 'Lambs: move a lamb' : 'Goats: move a goat');
+          turnTextEl.textContent = 'Tigers: move a tiger';
         }
       }
     }
@@ -300,15 +322,17 @@ export class GameController {
     const noteEl = document.getElementById('game-toast-note');
     if (noteEl) {
       if (this.selectedNode) {
-        noteEl.textContent = 'Tap a green spot to move or jump';
-      } else if (state.phase === 'placing') {
-        if (isMini) {
-          noteEl.textContent = 'Tap a green ring to place a lamb (1 tiger vs 5 lambs; tiger wins at 2 captures).';
-        } else {
-          noteEl.textContent = 'Tap a green ring to place a goat (3 tigers vs 15 goats; tigers win at 5 captures).';
-        }
+        noteEl.textContent = 'Tap a green ring to move or jump';
+      } else if (state.turn === 'G' && state.phase === 'placing') {
+        noteEl.textContent = isMini
+          ? 'Tap a green ring to place a lamb (5 lambs total).'
+          : 'Tap a green ring to place a goat (15 goats total).';
+      } else if (state.turn === 'T') {
+        noteEl.textContent = isMini
+          ? 'Tap your tiger or tap a green ring to move or jump.'
+          : 'Tap a tiger to select, then tap a green ring to move or jump.';
       } else {
-        noteEl.textContent = isMini ? 'Tap a tiger or lamb to see legal moves' : 'Tap your piece to see legal moves';
+        noteEl.textContent = isMini ? 'Tap a lamb to see legal moves' : 'Tap a goat to see legal moves';
       }
     }
 
@@ -317,11 +341,15 @@ export class GameController {
     if (container) {
       let legalSpots = [];
       if (!this.isComputerTurn()) {
-        if (state.phase === 'placing' || state.phase === 'setup') {
+        if (state.turn === 'G' && state.phase === 'placing') {
           const moves = getLegalMoves(state, this.graph);
           legalSpots = moves.map(m => m.to);
         } else if (this.selectedNode) {
           legalSpots = this.legalDestinations;
+        } else if (state.turn === 'T') {
+          // Highlight available moves for tigers
+          const moves = getLegalMoves(state, this.graph);
+          legalSpots = Array.from(new Set(moves.map(m => m.to)));
         }
       }
 

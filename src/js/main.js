@@ -25,6 +25,10 @@ export const appState = {
   }
 };
 
+if (typeof window !== 'undefined') {
+  window.appState = appState;
+}
+
 export let gameController = null;
 export let tutorialController = null;
 
@@ -158,6 +162,11 @@ export async function initApp() {
 
   gameController = new GameController(appState);
   tutorialController = new TutorialController(appState);
+
+  if (typeof window !== 'undefined') {
+    window.gameController = gameController;
+    window.tutorialController = tutorialController;
+  }
 
   // Home preview
   const classic = appState.boards.find(b => b.id === 'classic');
