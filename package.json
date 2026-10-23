@@ -1,0 +1,17 @@
+{
+  "name": "huli-meke",
+  "version": "0.1.0",
+  "description": "Karnataka tiger and goat game (PWA)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "huli-meke",
+    "aadu-huli",
+    "pwa",
+    "board-game"
+  ],
+  "author": "",
+  "license": "MIT"
+}
