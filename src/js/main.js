@@ -40,11 +40,27 @@ export function showScreen(screenId) {
       renderBoardPicker(appState);
     } else if (screenId === 'screen-custom') {
       updateCustomUI(appState);
+    } else if (screenId === 'screen-opponent') {
+      updateOpponentUI(appState);
     } else if (screenId === 'screen-stats') {
       renderStats();
     } else if (screenId === 'screen-settings') {
       updateSettingsUI();
     }
+  }
+}
+
+export function updateOpponentUI(state) {
+  const isMini = state.selectedMode === 'mini';
+  const goatPill = document.querySelector('.side-pill[data-side="G"]');
+  if (goatPill) {
+    goatPill.textContent = isMini ? 'Lamb' : 'Goat';
+  }
+  const humanCardNote = document.querySelector('#human-options-panel .muted');
+  if (humanCardNote) {
+    humanCardNote.textContent = isMini
+      ? 'Pass the phone after each move. Lamb player moves first.'
+      : 'Pass the phone after each move. Goat player moves first.';
   }
 }
 

@@ -7,18 +7,18 @@ import { showScreen } from './main.js';
 export const TUTORIAL_STEPS = [
   {
     step: 1,
-    indicator: 'Step 1 of 5: Place goats',
-    title: 'Place goats',
-    body: 'Goats are placed one per turn on any empty point. Tigers start on marked points.',
+    indicator: 'Step 1 of 5: Place goats & lambs',
+    title: 'Place pieces one per turn',
+    body: 'Goats (or lambs) are placed one per turn on any empty point. Goats always move first.\n• Standard: 3 tigers vs 15 goats\n• Mini: 1 tiger vs 5 lambs',
     pieces: { A: 'T', R1_2: 'T', R1_3: 'T' },
     legalTargets: ['R1_0', 'R1_1', 'R1_4', 'R1_5', 'R2_0', 'R2_1', 'R2_2', 'R2_3', 'R2_4', 'R2_5'],
     selectedNode: null
   },
   {
     step: 2,
-    indicator: 'Step 2 of 5: Moving goats',
-    title: 'Slide a goat',
-    body: 'After all goats are placed, a goat steps one point along a line to an adjacent empty spot.',
+    indicator: 'Step 2 of 5: Moving phase',
+    title: 'Slide a goat or lamb',
+    body: 'After all pieces are placed (15 in Standard, 5 in Mini), a goat or lamb steps one point along a line to an adjacent empty spot. Goats cannot jump.',
     // Frame 7 mockup layout:
     pieces: { A: 'T', R1_2: 'T', R1_3: 'T', R2_2: 'G', R3_2: 'G' },
     legalTargets: ['R3_1', 'R3_3', 'B_1'],
@@ -28,7 +28,7 @@ export const TUTORIAL_STEPS = [
     step: 3,
     indicator: 'Step 3 of 5: Tiger moves',
     title: 'Tiger steps and jumps',
-    body: 'A tiger steps one point, or jumps over an adjacent goat to the empty point right behind it on the same line. A jump captures that goat.',
+    body: 'A tiger steps one point, or jumps over an adjacent goat/lamb to the empty point right behind it on the same line. A jump captures that piece. No chain jumps.',
     pieces: { R2_2: 'T', R2_3: 'G', R3_1: 'T', B_3: 'T', R1_3: 'G' },
     legalTargets: ['R1_2', 'R2_4', 'R2_0'],
     selectedNode: 'R2_2'
@@ -36,8 +36,8 @@ export const TUTORIAL_STEPS = [
   {
     step: 4,
     indicator: 'Step 4 of 5: Tiger victory',
-    title: 'Tigers win',
-    body: 'Tigers win by capturing enough goats (5 in Standard mode, 2 in Mini mode). Tigers cannot make chain jumps.',
+    title: 'Tigers win by capturing',
+    body: 'Tigers win by capturing their target:\n• Standard mode: 5 captures\n• Mini mode: 2 captures',
     pieces: { R1_2: 'T', R2_3: 'T', B_2: 'T', R3_4: 'G', B_0: 'G' },
     legalTargets: [],
     selectedNode: null
@@ -45,8 +45,8 @@ export const TUTORIAL_STEPS = [
   {
     step: 5,
     indicator: 'Step 5 of 5: Goat victory',
-    title: 'Goats win',
-    body: 'Goats win by trapping every tiger so none has any legal move (step or jump). Goats pass their turn if blocked.',
+    title: 'Goats & lambs win by trapping',
+    body: 'Goats (or lambs) win by trapping every tiger so none has any legal move (step or jump). Goats pass their turn if blocked.',
     pieces: {
       A: 'T', R1_1: 'G', R1_2: 'G', R1_3: 'G', R1_4: 'G',
       R2_1: 'G', R2_2: 'T', R2_3: 'G', R2_4: 'G',
@@ -98,7 +98,10 @@ export class TutorialController {
 
     if (indEl) indEl.textContent = step.indicator;
     if (titleEl) titleEl.textContent = step.title;
-    if (bodyEl) bodyEl.textContent = step.body;
+    if (bodyEl) {
+      bodyEl.style.whiteSpace = 'pre-line';
+      bodyEl.textContent = step.body;
+    }
 
     if (boxEl && classic) {
       boxEl.innerHTML = renderBoardSVG(classic, {

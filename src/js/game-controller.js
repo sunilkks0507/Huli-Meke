@@ -77,9 +77,22 @@ export class GameController {
   }
 
   handlePointTap(nodeId) {
-    if (this.state.winner || this.isAiThinking) return;
+    if (this.state.winner) return;
+
+    if (this.isAiThinking) {
+      const noteEl = document.getElementById('game-toast-note');
+      if (noteEl) noteEl.textContent = 'Computer is thinking, please wait...';
+      return;
+    }
 
     if (this.appState.opponent.type === 'ai' && this.isComputerTurn()) {
+      const isMini = this.appState.selectedMode === 'mini';
+      const humanSide = this.appState.opponent.resolvedHumanSide || this.appState.opponent.humanSide;
+      const humanRole = humanSide === 'T' ? 'Tiger' : (isMini ? 'Lamb' : 'Goat');
+      const noteEl = document.getElementById('game-toast-note');
+      if (noteEl) {
+        noteEl.textContent = `Computer's turn. You play as ${humanRole}.`;
+      }
       return;
     }
 
@@ -195,14 +208,9 @@ export class GameController {
 
     if (this.appState.opponent.type === 'ai') {
       const humanSide = this.appState.opponent.resolvedHumanSide || this.appState.opponent.humanSide;
-      // Need at least one move made by human to undo
-      const hasHumanMove = this.state.history.some(h => {
-        const move = h.move;
-        return move.piece === humanSide;
-      });
+      const hasHumanMove = this.state.history.some(h => h.move.piece === humanSide);
       if (!hasHumanMove) return;
 
-      // Undo computer reply and human move
       if (this.state.turn === humanSide) {
         undoMove(this.state); // undo computer
         undoMove(this.state); // undo human
@@ -294,9 +302,13 @@ export class GameController {
       if (this.selectedNode) {
         noteEl.textContent = 'Tap a green spot to move or jump';
       } else if (state.phase === 'placing') {
-        noteEl.textContent = isMini ? 'Tap a green ring to place a lamb' : 'Tap a green ring to place a goat';
+        if (isMini) {
+          noteEl.textContent = 'Tap a green ring to place a lamb (1 tiger vs 5 lambs; tiger wins at 2 captures).';
+        } else {
+          noteEl.textContent = 'Tap a green ring to place a goat (3 tigers vs 15 goats; tigers win at 5 captures).';
+        }
       } else {
-        noteEl.textContent = 'Tap your piece to see legal moves';
+        noteEl.textContent = isMini ? 'Tap a tiger or lamb to see legal moves' : 'Tap your piece to see legal moves';
       }
     }
 

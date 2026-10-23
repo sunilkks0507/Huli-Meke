@@ -54,7 +54,7 @@ export function onModeChanged(appState) {
   if (appState.selectedMode === 'standard') {
     tabMini.classList.add('off');
     tabMini.title = 'Mini boards are disabled for Standard mode';
-    if (note) note.textContent = 'The rules stay the same on every board. Mini boards are too small for Standard, so they are greyed out.';
+    if (note) note.textContent = 'Standard mode: 3 tigers vs 15 goats (tigers win at 5 captures). Mini boards are too small for Standard, so they are greyed out.';
     appState.boardTab = 'full';
     tabFull.classList.add('on');
     tabMini.classList.remove('on');
@@ -64,7 +64,7 @@ export function onModeChanged(appState) {
     }
   } else if (appState.selectedMode === 'mini') {
     tabMini.classList.remove('off');
-    if (note) note.textContent = 'Small boards for quick games and kids. Each holds 1 tiger and 5 lambs or more.';
+    if (note) note.textContent = 'Mini mode: 1 tiger vs 5 lambs (tiger wins at 2 captures). Small boards for quick 3-minute games.';
     appState.boardTab = 'mini';
     tabMini.classList.add('on');
     tabFull.classList.remove('on');

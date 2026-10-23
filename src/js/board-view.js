@@ -1,7 +1,7 @@
 // Board SVG renderer and touch/click handler for Huli Meke
 // Renders stone-engraving boards strictly adhering to DESIGN_SYSTEM.md and MASTER_SPEC.md
 
-export function getNearestPoint(board, svgX, svgY, maxRadius = 24) {
+export function getNearestPoint(board, svgX, svgY, maxRadius = 28) {
   let closestId = null;
   let minDistanceSq = maxRadius * maxRadius;
 
@@ -72,8 +72,11 @@ export function renderBoardSVG(board, options = {}) {
 
     svg += `<g class="board-node" data-node-id="${id}" style="cursor: pointer;">`;
 
+    // Large invisible hit area (radius 22) for effortless touch/click registration
+    svg += `<circle cx="${x}" cy="${y}" r="22" fill="transparent" stroke="none" style="pointer-events:all;"/>`;
+
     // Base point or piece
-    svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
+    svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" pointer-events="none"/>`;
 
     // Piece Text Label
     if (piece === 'T') {
@@ -82,14 +85,14 @@ export function renderBoardSVG(board, options = {}) {
       svg += `<text x="${x}" y="${y + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#5A4630" pointer-events="none">G</text>`;
     }
 
-    // Legal move ring: dashed #16A34A, radius 12, width 3
+    // Legal move ring: dashed #16A34A, radius 13, width 3
     if (isLegal) {
-      svg += `<circle cx="${x}" cy="${y}" r="12" fill="none" stroke="#16A34A" stroke-width="3" stroke-dasharray="4 3" pointer-events="none"/>`;
+      svg += `<circle cx="${x}" cy="${y}" r="13" fill="none" stroke="#16A34A" stroke-width="3" stroke-dasharray="4 3" pointer-events="none"/>`;
     }
 
     // Hint ring: warning amber highlight
     if (isHint) {
-      svg += `<circle cx="${x}" cy="${y}" r="14" fill="none" stroke="#D97706" stroke-width="3" stroke-dasharray="2 2" pointer-events="none"/>`;
+      svg += `<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#D97706" stroke-width="3" stroke-dasharray="2 2" pointer-events="none"/>`;
     }
 
     svg += `</g>`;
@@ -100,23 +103,56 @@ export function renderBoardSVG(board, options = {}) {
 }
 
 export function attachBoardInteraction(container, board, onPointSelected) {
-  const handleTap = (clientX, clientY) => {
+  const handleTap = (clientX, clientY, targetEl) => {
+    // 1. Direct hit on data-node-id element
+    if (targetEl) {
+      const nodeEl = targetEl.closest('[data-node-id]');
+      if (nodeEl && nodeEl.dataset.nodeId) {
+        onPointSelected(nodeEl.dataset.nodeId);
+        return;
+      }
+    }
+
+    // 2. Proportional bounding-rect hit (100% reliable across all zoom / DPI settings)
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
+    const rect = svgEl.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      const [w, h] = board.viewBox;
+      const svgX = ((clientX - rect.left) / rect.width) * w;
+      const svgY = ((clientY - rect.top) / rect.height) * h;
+      const nearestId = getNearestPoint(board, svgX, svgY, 28);
+      if (nearestId) {
+        onPointSelected(nearestId);
+        return;
+      }
+    }
+
+    // 3. SVG CTM fallback
     const { x, y } = clientToSvgCoords(svgEl, clientX, clientY);
-    const nearestId = getNearestPoint(board, x, y, 24);
+    const nearestId = getNearestPoint(board, x, y, 28);
     if (nearestId) {
       onPointSelected(nearestId);
     }
   };
 
   const onClick = (e) => {
-    handleTap(e.clientX, e.clientY);
+    handleTap(e.clientX, e.clientY, e.target);
+  };
+
+  const onTouchEnd = (e) => {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      const touch = e.changedTouches[0];
+      handleTap(touch.clientX, touch.clientY, document.elementFromPoint(touch.clientX, touch.clientY));
+      e.preventDefault();
+    }
   };
 
   container.addEventListener('click', onClick);
+  container.addEventListener('touchend', onTouchEnd, { passive: false });
 
   return () => {
     container.removeEventListener('click', onClick);
+    container.removeEventListener('touchend', onTouchEnd);
   };
 }

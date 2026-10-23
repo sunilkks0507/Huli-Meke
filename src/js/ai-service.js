@@ -1,4 +1,4 @@
-// AI Service Wrapper: Web Worker communication, pacing (min 400ms), and Node/fallback support
+// AI Service Wrapper: Web Worker communication with resilient fallback and 1.5s watchdog timer
 
 import { getBestMove, getHint } from './ai.js';
 
@@ -18,6 +18,14 @@ function initWorker() {
           cb(error ? null : move);
         }
       };
+      worker.onerror = (err) => {
+        console.warn('Worker error, falling back to main thread:', err);
+        worker = null;
+        for (const [id, cb] of pendingCallbacks.entries()) {
+          pendingCallbacks.delete(id);
+          cb(null);
+        }
+      };
     } catch (e) {
       console.warn('Worker initialization failed, using main thread fallback:', e);
       worker = null;
@@ -30,10 +38,12 @@ export function requestAIMove(state, graph, level, minDelayMs = 400) {
     const startTime = Date.now();
 
     const handleResult = (move) => {
+      // If move is null or failed, generate synchronously as fallback
+      const finalMove = move || getBestMove(state, graph, level);
       const elapsed = Date.now() - startTime;
       const remainingDelay = Math.max(0, minDelayMs - elapsed);
       setTimeout(() => {
-        resolve(move);
+        resolve(finalMove);
       }, remainingDelay);
     };
 
@@ -41,10 +51,23 @@ export function requestAIMove(state, graph, level, minDelayMs = 400) {
 
     if (worker) {
       const id = ++msgId;
-      pendingCallbacks.set(id, handleResult);
+      // 1.5s watchdog timeout: if worker doesn't respond, execute on main thread
+      const watchdog = setTimeout(() => {
+        if (pendingCallbacks.has(id)) {
+          pendingCallbacks.delete(id);
+          console.warn('AI worker timeout reached, computing move on main thread');
+          const fallback = getBestMove(state, graph, level);
+          handleResult(fallback);
+        }
+      }, 1500);
+
+      pendingCallbacks.set(id, (move) => {
+        clearTimeout(watchdog);
+        handleResult(move);
+      });
+
       worker.postMessage({ id, type: 'getBestMove', state, graph, level });
     } else {
-      // Synchronous fallback
       setTimeout(() => {
         const move = getBestMove(state, graph, level);
         handleResult(move);
@@ -59,11 +82,21 @@ export function requestHint(state, graph) {
 
     if (worker) {
       const id = ++msgId;
-      pendingCallbacks.set(id, (move) => resolve(move));
+      const watchdog = setTimeout(() => {
+        if (pendingCallbacks.has(id)) {
+          pendingCallbacks.delete(id);
+          resolve(getHint(state, graph));
+        }
+      }, 1000);
+
+      pendingCallbacks.set(id, (move) => {
+        clearTimeout(watchdog);
+        resolve(move || getHint(state, graph));
+      });
+
       worker.postMessage({ id, type: 'getHint', state, graph });
     } else {
-      const move = getHint(state, graph);
-      resolve(move);
+      resolve(getHint(state, graph));
     }
   });
 }
