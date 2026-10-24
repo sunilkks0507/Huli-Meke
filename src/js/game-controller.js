@@ -21,6 +21,11 @@ export class GameController {
     this.hintActive = false;
     this.hintNodes = [];
     this.isAiThinking = false;
+    this.timerDuration = 0;
+    this.onTimeout = 'forfeit';
+    this.timerSecondsLeft = 0;
+    this.timerInterval = null;
+    this.isTimerPaused = false;
   }
 
   startNewGame() {
@@ -50,6 +55,13 @@ export class GameController {
     this.hintActive = false;
     this.hintNodes = [];
     this.isAiThinking = false;
+
+    // Turn timer setup
+    this.stopTimer();
+    this.isTimerPaused = false;
+    this.timerDuration = (appState.timer && appState.timer.duration) || 0;
+    this.onTimeout = (appState.timer && appState.timer.onTimeout) || 'forfeit';
+    this.timerSecondsLeft = this.timerDuration;
 
     const modeTitle = document.getElementById('game-mode-title');
     if (modeTitle) {
@@ -177,6 +189,7 @@ export class GameController {
     this.updateUI();
 
     if (this.state.winner) {
+      this.stopTimer();
       if (this.appState.opponent.type === 'ai') {
         const humanSide = this.appState.opponent.resolvedHumanSide || this.appState.opponent.humanSide;
         recordGameResult(this.appState.selectedMode, humanSide, this.state.winner);
@@ -196,9 +209,13 @@ export class GameController {
   }
 
   triggerTurn() {
-    if (this.state.winner) return;
+    if (this.state.winner) {
+      this.stopTimer();
+      return;
+    }
 
     if (this.appState.opponent.type === 'ai' && this.isComputerTurn()) {
+      this.stopTimer();
       this.isAiThinking = true;
       this.updateUI();
 
@@ -210,6 +227,107 @@ export class GameController {
           this.updateUI();
         }
       });
+    } else {
+      if (this.timerDuration > 0) {
+        this.startTurnTimer();
+      } else {
+        this.stopTimer();
+        this.updateTimerBadge();
+      }
+    }
+  }
+
+  startTurnTimer() {
+    this.stopTimer();
+    this.timerSecondsLeft = this.timerDuration;
+    this.isTimerPaused = false;
+    this.updateTimerBadge();
+
+    this.timerInterval = setInterval(() => {
+      if (this.isTimerPaused || this.isAiThinking || !this.state || this.state.winner) return;
+      this.timerSecondsLeft--;
+      this.updateTimerBadge();
+      if (this.timerSecondsLeft <= 0) {
+        this.stopTimer();
+        this.handleTimeout();
+      }
+    }, 1000);
+  }
+
+  stopTimer() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+  }
+
+  pauseTimer() {
+    this.isTimerPaused = true;
+  }
+
+  resumeTimer() {
+    this.isTimerPaused = false;
+  }
+
+  handleTimeout() {
+    if (!this.state || this.state.winner) return;
+
+    if (this.onTimeout === 'forfeit') {
+      const loser = this.state.turn;
+      const winner = loser === 'T' ? 'G' : 'T';
+      this.state.winner = winner;
+      this.state.winReason = 'timeout';
+
+      const settings = loadSettings();
+      if (this.appState.opponent.type === 'ai') {
+        const humanSide = this.appState.opponent.resolvedHumanSide || this.appState.opponent.humanSide;
+        recordGameResult(this.appState.selectedMode, humanSide, this.state.winner);
+        if (this.state.winner === humanSide) {
+          playSound('win', settings.sound);
+        } else {
+          playSound('lose', settings.sound);
+        }
+      } else {
+        playSound('win', settings.sound);
+      }
+      this.updateUI();
+      setTimeout(() => this.showResultScreen(), 400);
+    } else {
+      // Random move fallback
+      const legalMoves = getLegalMoves(this.state, this.graph);
+      if (legalMoves.length > 0) {
+        const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+        const noteEl = document.getElementById('game-toast-note');
+        if (noteEl) {
+          noteEl.textContent = "Time's up! A random move was played.";
+        }
+        this.executeMove(randomMove);
+      }
+    }
+  }
+
+  updateTimerBadge(isAiTurn = false) {
+    const badge = document.getElementById('game-timer-badge');
+    const countEl = document.getElementById('timer-count');
+    if (!badge || !countEl) return;
+
+    if (this.timerDuration === 0 || !this.state || this.state.winner) {
+      badge.style.display = 'none';
+      return;
+    }
+
+    badge.style.display = 'inline-flex';
+    if (isAiTurn) {
+      badge.classList.remove('warning');
+      countEl.textContent = '--';
+    } else {
+      const displaySec = Math.max(0, this.timerSecondsLeft);
+      countEl.textContent = displaySec;
+      if (displaySec <= 5) {
+        badge.classList.add('warning');
+      } else {
+        badge.classList.remove('warning');
+      }
     }
   }
 
@@ -241,6 +359,10 @@ export class GameController {
     this.selectedNode = null;
     this.legalDestinations = [];
     this.updateUI();
+
+    if (this.timerDuration > 0) {
+      this.startTurnTimer();
+    }
   }
 
   handleHint() {

@@ -353,11 +353,62 @@ body {
   font-size: 18px;
 }
 
+.turn-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 28px;
+  flex-wrap: wrap;
+}
+
 .turn {
   text-align: center;
   font-weight: 600;
   font-size: 15px;
-  min-height: 24px;
+}
+
+.timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.timer-badge.warning {
+  background: #FEF2F2;
+  border-color: var(--danger);
+  color: var(--danger);
+  animation: pulse-timer 1s infinite;
+}
+
+@keyframes pulse-timer {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timer-badge.warning {
+    animation: none;
+  }
+}
+
+.timer-pill,
+.timeout-pill {
+  flex: 1;
+  min-width: 54px;
 }
 
 .boardbox {

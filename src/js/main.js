@@ -22,6 +22,10 @@ export const appState = {
     humanSide: 'T',
     resolvedHumanSide: 'T',
     difficulty: 'medium'
+  },
+  timer: {
+    duration: 0,
+    onTimeout: 'forfeit'
   }
 };
 
@@ -138,8 +142,14 @@ function attachAppEventListeners() {
 
   document.getElementById('btn-game-undo')?.addEventListener('click', () => gameController.handleUndo());
   document.getElementById('btn-game-hint')?.addEventListener('click', () => gameController.handleHint());
-  document.getElementById('btn-game-pause')?.addEventListener('click', () => showModal('modal-pause'));
-  document.getElementById('btn-pause-resume')?.addEventListener('click', () => hideModal('modal-pause'));
+  document.getElementById('btn-game-pause')?.addEventListener('click', () => {
+    gameController?.pauseTimer();
+    showModal('modal-pause');
+  });
+  document.getElementById('btn-pause-resume')?.addEventListener('click', () => {
+    hideModal('modal-pause');
+    gameController?.resumeTimer();
+  });
 
   document.getElementById('btn-pause-restart')?.addEventListener('click', () => {
     showConfirmDialog({
@@ -148,6 +158,7 @@ function attachAppEventListeners() {
       actionLabel: 'Restart',
       onConfirm: () => {
         hideModal('modal-pause');
+        gameController?.stopTimer();
         gameController.startNewGame();
       }
     });
@@ -160,6 +171,7 @@ function attachAppEventListeners() {
       actionLabel: 'Quit',
       onConfirm: () => {
         hideModal('modal-pause');
+        gameController?.stopTimer();
         showScreen('screen-home');
       }
     });
@@ -228,6 +240,32 @@ function initOpponentScreen() {
       document.querySelectorAll('.diff-pill').forEach(p => p.classList.remove('on'));
       pill.classList.add('on');
       appState.opponent.difficulty = pill.dataset.diff;
+    });
+  });
+
+  document.querySelectorAll('.timer-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.timer-pill').forEach(p => p.classList.remove('on'));
+      pill.classList.add('on');
+      appState.timer.duration = parseInt(pill.dataset.timer, 10);
+      const timeoutPanel = document.getElementById('timeout-action-panel');
+      if (timeoutPanel) {
+        timeoutPanel.style.display = appState.timer.duration > 0 ? 'flex' : 'none';
+      }
+    });
+  });
+
+  document.querySelectorAll('.timeout-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.timeout-pill').forEach(p => p.classList.remove('on'));
+      pill.classList.add('on');
+      appState.timer.onTimeout = pill.dataset.timeout;
+      const descEl = document.getElementById('timeout-action-desc');
+      if (descEl) {
+        descEl.textContent = appState.timer.onTimeout === 'random'
+          ? 'Random move: A random legal move will be played automatically.'
+          : 'Forfeit: The player whose time runs out loses immediately.';
+      }
     });
   });
 }
