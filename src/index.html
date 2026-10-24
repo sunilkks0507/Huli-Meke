@@ -197,6 +197,28 @@
           <div class="muted">Pass the phone after each move. Goat player moves first.</div>
         </div>
 
+        <!-- Timer Options -->
+        <div class="timer-section" style="display:flex; flex-direction:column; gap:8px;">
+          <div class="muted">Turn timer</div>
+          <div class="row" role="radiogroup" aria-label="Turn timer duration" style="flex-wrap:wrap">
+            <button class="pill timer-pill on" data-timer="0" type="button">Off</button>
+            <button class="pill timer-pill" data-timer="15" type="button">15s</button>
+            <button class="pill timer-pill" data-timer="30" type="button">30s</button>
+            <button class="pill timer-pill" data-timer="45" type="button">45s</button>
+            <button class="pill timer-pill" data-timer="60" type="button">60s</button>
+          </div>
+
+          <!-- On Timeout Action (visible when timer > 0) -->
+          <div id="timeout-action-panel" style="display:none; flex-direction:column; gap:8px;">
+            <div class="muted">If time runs out</div>
+            <div class="row" role="radiogroup" aria-label="Timeout action">
+              <button class="pill timeout-pill on" data-timeout="forfeit" type="button" style="flex:1">Forfeit</button>
+              <button class="pill timeout-pill" data-timeout="random" type="button" style="flex:1">Random move</button>
+            </div>
+            <div id="timeout-action-desc" class="muted" style="font-size:12px;">Forfeit: The player whose time runs out loses immediately.</div>
+          </div>
+        </div>
+
         <div class="spacer"></div>
         <button id="btn-opponent-start" class="btn" type="button">Start game</button>
       </div>
@@ -224,7 +246,12 @@
           </div>
         </div>
 
-        <div id="game-turn-text" class="turn" aria-live="polite">Your turn: place a goat</div>
+        <div class="turn-container">
+          <div id="game-turn-text" class="turn" aria-live="polite">Your turn: place a goat</div>
+          <div id="game-timer-badge" class="timer-badge" style="display:none;" aria-live="polite" aria-label="Turn Timer">
+            <span class="timer-icon">⏱</span> <span id="timer-count">30</span>s
+          </div>
+        </div>
 
         <div id="game-board-container" class="boardbox" tabindex="0" role="application" aria-label="Interactive Game Board"></div>
 

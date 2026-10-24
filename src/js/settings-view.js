@@ -13,6 +13,29 @@ export function updateOpponentUI(state) {
       ? 'Pass the phone after each move. Lamb player moves first.'
       : 'Pass the phone after each move. Goat player moves first.';
   }
+
+  // Update turn timer pills & timeout panel
+  const timer = state.timer || { duration: 0, onTimeout: 'forfeit' };
+  document.querySelectorAll('.timer-pill').forEach(pill => {
+    const val = parseInt(pill.dataset.timer, 10);
+    pill.classList.toggle('on', val === timer.duration);
+  });
+
+  const timeoutPanel = document.getElementById('timeout-action-panel');
+  if (timeoutPanel) {
+    timeoutPanel.style.display = timer.duration > 0 ? 'flex' : 'none';
+  }
+
+  document.querySelectorAll('.timeout-pill').forEach(pill => {
+    pill.classList.toggle('on', pill.dataset.timeout === timer.onTimeout);
+  });
+
+  const descEl = document.getElementById('timeout-action-desc');
+  if (descEl) {
+    descEl.textContent = timer.onTimeout === 'random'
+      ? 'Random move: A random legal move will be played automatically.'
+      : 'Forfeit: The player whose time runs out loses immediately.';
+  }
 }
 
 export function renderStats() {

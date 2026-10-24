@@ -109,6 +109,11 @@ export function updateGameUI(controller) {
     });
   }
 
+  // Timer badge update
+  if (controller.updateTimerBadge) {
+    controller.updateTimerBadge(controller.isComputerTurn());
+  }
+
   // Undo & Hint buttons
   const undoBtn = document.getElementById('btn-game-undo');
   if (undoBtn) {
@@ -138,10 +143,14 @@ export function showGameResult(controller) {
   if (heroTitle && heroSub) {
     if (state.winner === 'T') {
       heroTitle.textContent = 'Tigers win!';
-      heroSub.textContent = `Tigers captured ${state.goatsCaptured} ${isMini ? 'lambs' : 'goats'}`;
+      heroSub.textContent = state.winReason === 'timeout'
+        ? (isMini ? 'Lambs ran out of time (Forfeit)' : 'Goats ran out of time (Forfeit)')
+        : `Tigers captured ${state.goatsCaptured} ${isMini ? 'lambs' : 'goats'}`;
     } else if (state.winner === 'G') {
       heroTitle.textContent = isMini ? 'Lambs win!' : 'Goats win!';
-      heroSub.textContent = 'All tigers are trapped';
+      heroSub.textContent = state.winReason === 'timeout'
+        ? 'Tigers ran out of time (Forfeit)'
+        : 'All tigers are trapped';
     } else {
       heroTitle.textContent = 'Draw';
       heroSub.textContent = `No capture in ${state.pliesSinceCapture} moves`;
@@ -155,7 +164,8 @@ export function showGameResult(controller) {
     const oppName = appState.opponent.type === 'human'
       ? 'Two players'
       : (appState.opponent.difficulty.charAt(0).toUpperCase() + appState.opponent.difficulty.slice(1));
-    valMode.textContent = `${modeName}, ${oppName}`;
+    const timerSuffix = controller.timerDuration > 0 ? ` (${controller.timerDuration}s timer)` : '';
+    valMode.textContent = `${modeName}, ${oppName}${timerSuffix}`;
   }
 
   showScreen('screen-result');
