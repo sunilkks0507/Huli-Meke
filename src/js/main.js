@@ -329,9 +329,20 @@ function initInstallPrompt() {
 // Service worker registration
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => {
+    navigator.serviceWorker.register('sw.js').then((registration) => {
+      registration.update();
+    }).catch(err => {
       console.warn('Service worker registration failed:', err);
     });
+  });
+
+  // Automatically refresh when a new service worker takes over
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
   });
 }
 
